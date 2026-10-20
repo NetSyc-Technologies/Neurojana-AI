@@ -104,6 +104,19 @@ public/assets/             Put logo.png and logo.mp4 here
 vercel.json                 Vercel settings
 ```
 
+## Search engine optimization
+
+The production URL is `https://neurojnaai.com/`, matching `SITE_URL`. The homepage includes a canonical link, service-focused metadata, Open Graph and Twitter previews using the official logo, and JSON-LD for the company, website, page, and four services.
+
+- `public/sitemap.xml` lists the homepage, the site's only standalone content page. Vite copies it to `dist/sitemap.xml`.
+- `public/robots.txt` allows crawling and advertises the sitemap. API responses receive `X-Robots-Tag: noindex, nofollow, nosnippet` through `vercel.json`. They remain crawlable so search engines can read that header.
+- Vercel permanently redirects `/index.html` to `/` to consolidate duplicate homepage URLs.
+- Service sections have anchor URLs; these are not separate pages and should not be added as sitemap entries.
+
+After deploying, confirm `/sitemap.xml` and `/robots.txt` return HTTP 200 on the production domain, then submit `https://neurojnaai.com/sitemap.xml` in the verified property's Google Search Console Sitemaps report. Check the homepage with URL Inspection and Google's Rich Results Test. These local changes do not submit the site or guarantee indexing.
+
+When adding standalone pages, add their canonical URLs to the sitemap. Update each `lastmod` only when that page changes meaningfully, not on every build. If the production domain changes, update `SITE_URL`, the canonical/social/JSON-LD URLs in `index.html`, and both crawler files together. Keep Vercel preview deployments private or non-indexable using deployment settings.
+
 ## Security reminder
 
 The Resend secret pasted into the original request is **not** in this ZIP. Create a new Resend key and revoke the previously shared one. Do not put server secrets into Git or client-side JavaScript. The website cannot send emails or store subscribers until the server-side environment variables are configured.
