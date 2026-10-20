@@ -1,17 +1,14 @@
-# NEUROJANA-AI | Coming Soon
+# NEUROJNA-AI | Coming Soon
 
-An elegant, mobile-friendly landing page featuring a **mandatory fullscreen animated-logo intro**, a light-themed homepage, and secure email subscriptions via **Resend + Cloud Firestore**.
+An elegant, mobile-friendly landing page featuring a luminous modern design, floating interactive chips, and secure email subscriptions via **Resend + Cloud Firestore**.
 
-## 1. Add the two brand assets
+## 1. Add the brand asset
 
-Copy your files into these exact paths:
+Copy your files into this exact path:
 
 ```
-public/assets/logo.mp4   # Fullscreen intro animation (MP4/H.264)
 public/assets/logo.png   # Static logo (preferably a transparent PNG)
 ```
-
-The MP4 plays automatically with **no skip / cancel / close control**. Browsers usually allow muted autoplay. If a browser blocks autoplay, a button to **play** the intro appears; there is still no skip option. If the video is missing or fails to load, the site fails gracefully to the homepage instead of trapping visitors on a blank screen. The full video is displayed using `object-fit: contain` so the logo is not cropped. Audio is muted for autoplay compatibility.
 
 ## 2. Configure the environment (required for live subscriptions)
 
@@ -22,11 +19,11 @@ The supplied Firebase **web** settings are pre-filled in `.env` / `.env.example`
 | Name | Where to find it |
 | --- | --- |
 | `RESEND_API_KEY` | Generate a **new** API key in [Resend API Keys](https://resend.com/api-keys). Rotate the key that was exposed in chat; it is intentionally **not** embedded in this project. |
-| `RESEND_FROM_EMAIL` | An email address on a **verified domain** in Resend, e.g. `updates@your-verified-domain.com` (no placeholder allowed). |
+| `RESEND_FROM_EMAIL` | An email address on a **verified domain** in Resend, e.g. `updates@neurojnaai.com` (no placeholder allowed). |
 | `FIREBASE_ADMIN_PROJECT_ID` | Already set to `neurojna-ai-web`. |
 | `FIREBASE_ADMIN_CLIENT_EMAIL` | Firebase Console → Project settings → **Service accounts** → Generate new private key → JSON field `client_email`. |
 | `FIREBASE_ADMIN_PRIVATE_KEY` | Same service account JSON, field `private_key`; represent line breaks as literal `\n` in the environment value. Keep secret. |
-| `SITE_URL` | Your actual deployment URL including `https://`, without a trailing slash, e.g. `https://neurojana.example`. Needed for email unsubscribe links and origin checks. |
+| `SITE_URL` | Your actual deployment URL including `https://`, without a trailing slash, e.g. `https://neurojnaai.com`. Needed for email unsubscribe links and origin checks. |
 | `SUBSCRIPTION_SECRET` | Any securely generated random string of **at least 32 characters**; example generation: `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Keep secret and stable so unsubscribe links remain valid. |
 
 **Never put the Resend API key, Firebase Admin email/private key, or subscription secret in variables prefixed `VITE_`.** `VITE_` variables are embedded into publicly downloadable frontend JavaScript. The Firebase web API key can be public, but you should restrict it appropriately in Google Cloud Console.

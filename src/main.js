@@ -1,10 +1,8 @@
 import './style.css';
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported } from 'firebase/analytics';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-// Firebase Web SDK initializes analytics only. Writes happen exclusively inside
-// the server-side Vercel API using Firebase Admin credentials.
+// Subscriber writes and confirmation emails are handled by /api/subscribe.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -14,56 +12,15 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
-
-let firebaseApp = null;
-let firestoreDb = null;
-
 if (firebaseConfig.apiKey && firebaseConfig.appId) {
   try {
-    firebaseApp = initializeApp(firebaseConfig);
+    const app = initializeApp(firebaseConfig);
     if (firebaseConfig.measurementId) {
       isSupported().then((supported) => {
-        if (supported) getAnalytics(firebaseApp);
+        if (supported) getAnalytics(app);
       }).catch(() => {});
     }
-  } catch (err) {
-    console.info('Analytics unavailable:', err?.message || 'not supported');
-  }
-}
-
-function getDatabaseClient() {
-  if (!firestoreDb && firebaseApp) {
-    try {
-      firestoreDb = getFirestore(firebaseApp);
-    } catch (err) {
-      console.warn('Firestore initialization failed:', err);
-    }
-  }
-  return firestoreDb;
-}
-
-async function sha256Hex(str) {
-  try {
-    if (window.crypto?.subtle) {
-      const buffer = new TextEncoder().encode(str);
-      const hash = await window.crypto.subtle.digest('SHA-256', buffer);
-      return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    }
-  } catch {}
-  return encodeURIComponent(str).replace(/[^a-zA-Z0-9_-]/g, '_');
-}
-
-async function saveSubscriberClientDirect(email) {
-  const db = getDatabaseClient();
-  if (!db) throw new Error('Database client not available.');
-  const docId = await sha256Hex(email);
-  await setDoc(doc(db, 'launchSubscribers', docId), {
-    email,
-    subscriptionStatus: 'active',
-    deliveryStatus: 'pending',
-    subscribedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  } catch { /* Analytics must never interrupt the page. */ }
 }
 
 const form = document.getElementById('subscribe-form');
@@ -71,117 +28,105 @@ const emailInput = document.getElementById('email');
 const formMessage = document.getElementById('form-message');
 const submitButton = document.getElementById('subscribe-button');
 const successState = document.getElementById('success-state');
-
 const yearEl = document.getElementById('year');
 if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
 const logo = document.getElementById('brand-logo');
-const markFallback = () => logo?.closest('.logo-box, .logo-frame')?.classList.add('no-image');
+const markFallback = () => logo?.closest('.logo-box')?.classList.add('no-image');
 if (logo) {
   logo.addEventListener('error', markFallback);
   if (logo.complete && !logo.naturalWidth) markFallback();
 }
 
-const neutralMessage = formMessage.innerHTML;
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const motionButton = document.getElementById('motion-toggle');
+let motionPaused = motionQuery.matches;
+try { motionPaused ||= localStorage.getItem('neurojna-motion') === 'paused'; } catch {}
+function updateMotion() {
+  document.documentElement.classList.toggle('motion-paused', motionPaused);
+  motionButton.textContent = motionPaused ? 'Resume motion' : 'Pause motion';
+  motionButton.setAttribute('aria-pressed', String(motionPaused));
+  // The system preference takes priority; no misleading resume control.
+  motionButton.hidden = motionQuery.matches;
+}
+motionButton.addEventListener('click', () => {
+  motionPaused = !motionPaused;
+  try { localStorage.setItem('neurojna-motion', motionPaused ? 'paused' : 'playing'); } catch {}
+  updateMotion();
+});
+motionQuery.addEventListener('change', () => {
+  motionPaused = motionQuery.matches;
+  try { motionPaused ||= localStorage.getItem('neurojna-motion') === 'paused'; } catch {}
+  updateMotion();
+});
+updateMotion();
+
+const neutralMessage = formMessage.textContent;
 function setFormMessage(text, type = '') {
   formMessage.textContent = text;
   formMessage.className = `form-microtext ${type}`.trim();
-  emailInput.setAttribute('aria-invalid', type === 'error' ? 'true' : 'false');
+  emailInput.setAttribute('aria-invalid', String(type === 'error'));
 }
-
 emailInput.addEventListener('input', () => {
   if (formMessage.classList.contains('error')) {
-    formMessage.innerHTML = neutralMessage;
-    formMessage.className = 'form-microtext';
+    setFormMessage(neutralMessage);
     emailInput.removeAttribute('aria-invalid');
   }
 });
-
+function showSuccess() {
+  form.hidden = true;
+  formMessage.hidden = true;
+  successState.hidden = false;
+  successState.classList.add('success-enter');
+  successState.focus();
+}
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (submitButton.disabled) return;
-
   const email = emailInput.value.trim().toLowerCase();
+  emailInput.value = email;
   if (!email || !emailInput.validity.valid || email.length > 254) {
     setFormMessage('Please enter a valid email address.', 'error');
     emailInput.focus();
     return;
   }
-
   const company = document.getElementById('company')?.value || '';
-
+  if (company) { showSuccess(); return; }
   submitButton.disabled = true;
   submitButton.classList.add('is-loading');
+  form.setAttribute('aria-busy', 'true');
   emailInput.disabled = true;
   setFormMessage('Adding you to the list…');
-
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    // Non-interactive bot submissions
-    if (company) {
-      form.hidden = true;
-      successState.hidden = false;
-      successState.classList.add('success-enter');
-      return;
+    const response = await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ email, company }),
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload || typeof payload.message !== 'string') {
+      const message = response.status === 429
+        ? 'Too many attempts. Please try again later.'
+        : 'We couldn’t add you just yet. Please try again, or email contact@neurojnaai.com.';
+      throw new Error(message);
     }
-
-    let isSuccess = false;
-    let apiErrorMsg = '';
-
-    try {
-      const response = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ email, company }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-
-      if (response.ok) {
-        isSuccess = true;
-      } else {
-        apiErrorMsg = payload.message || payload.error?.message || (typeof payload.error === 'string' ? payload.error : '') || '';
-        // If 404 (local dev server or static host) or 500/502/503 (server secrets missing), attempt client fallback
-        const isUnavailable = [404, 500, 502, 503].includes(response.status);
-        if (isUnavailable) {
-          try {
-            await saveSubscriberClientDirect(email);
-            isSuccess = true;
-          } catch (fallbackErr) {
-            console.warn('Direct Firestore save failed:', fallbackErr);
-            throw new Error(apiErrorMsg || fallbackErr.message || 'Subscription failed. Please try again.');
-          }
-        } else {
-          throw new Error(apiErrorMsg || 'Subscription failed. Please try again.');
-        }
-      }
-    } catch (networkOrApiErr) {
-      if (isSuccess) {
-        // Handled
-      } else {
-        // Network error (offline or local dev without server) - attempt direct Firestore save
-        try {
-          await saveSubscriberClientDirect(email);
-          isSuccess = true;
-        } catch {
-          throw networkOrApiErr;
-        }
-      }
-    }
-
-    if (isSuccess) {
-      form.hidden = true;
-      form.style.display = 'none';
-      formMessage.hidden = true;
-      formMessage.style.display = 'none';
-      successState.hidden = false;
-      successState.style.display = 'flex';
-      successState.classList.add('success-enter');
-    }
+    showSuccess();
   } catch (err) {
-    setFormMessage(err?.message || 'Something went wrong. Please try again.', 'error');
+    const message = err?.name === 'AbortError'
+      ? 'This is taking longer than expected. Please try again.'
+      : err instanceof TypeError
+        ? 'Unable to connect. Check your connection and try again.'
+        : err?.message || 'Something went wrong. Please try again.';
+    setFormMessage(message, 'error');
     emailInput.disabled = false;
+    emailInput.focus();
   } finally {
+    clearTimeout(timeout);
     submitButton.disabled = false;
     submitButton.classList.remove('is-loading');
+    form.removeAttribute('aria-busy');
   }
 });

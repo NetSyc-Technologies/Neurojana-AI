@@ -76,14 +76,14 @@ export default defineConfig(({ mode }) => {
               try {
                 console.log(`[Dev Server] Sending email via Resend to ${email} from ${fromEmail}...`);
                 const resend = new Resend(apiKey);
-                const fromAddress = fromEmail.includes('<') ? fromEmail : `Neurojana-AI <${fromEmail}>`;
+                const fromAddress = fromEmail.includes('<') ? fromEmail : `Neurojna-AI <${fromEmail}>`;
                 const unsubscribeUrl = `${siteUrl}/api/unsubscribe?token=dev`;
                 const logoUrl = `${siteUrl}/assets/logo.png`;
 
                 const { data, error } = await resend.emails.send({
                   from: fromAddress,
                   to: [email],
-                  subject: "Hurray! You're subscribed 🎉 | Neurojana-AI",
+                  subject: "Hurray! You're subscribed 🎉 | Neurojna-AI",
                   html: emailHtml({ unsubscribeUrl, logoUrl }),
                   text: emailText({ unsubscribeUrl }),
                 });

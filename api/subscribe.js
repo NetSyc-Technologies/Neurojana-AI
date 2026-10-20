@@ -113,9 +113,9 @@ export default async function handler(req, res) {
     const logoUrl = new URL('/assets/logo.png', baseUrl).href;
     const resend = new Resend(apiKey);
     const { data, error } = await resend.emails.send({
-      from: from.includes('<') ? from : `Neurojana-AI <${from}>`,
+      from: from.includes('<') ? from : `Neurojna-AI <${from}>`,
       to: [email],
-      subject: "Hurray! You're subscribed 🎉 | Neurojana-AI",
+      subject: "Hurray! You're subscribed 🎉 | Neurojna-AI",
       html: emailHtml({ unsubscribeUrl: unsubscribeUrl.href, logoUrl }),
       text: emailText({ unsubscribeUrl: unsubscribeUrl.href }),
     });
