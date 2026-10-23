@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAuthorizedAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email != null &&
+        (
+          request.auth.token.email.lower() == 'admin@neurojanaai.com' ||
+          request.auth.token.email.lower() == 'admin@netsyc.com'
+        );
+    }
+
+    // Site Settings: Public can read settings; only authorized admins can edit
+    match /site_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Page Content: Public can read published CMS copy; only admins can edit
+    match /page_content/{pageId} {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Services: Public can read published services; admins can read all and write
+    match /services/{serviceId} {
+      allow read: if resource == null || resource.data.published == true || isAuthorizedAdmin();
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Portfolio Case Studies: Public can read published projects; admins have full access
+    match /portfolio/{projectId} {
+      allow read: if resource == null || resource.data.published == true || isAuthorizedAdmin();
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Blog Posts: Public can read published articles; admins have full access
+    match /blog_posts/{postId} {
+      allow read: if resource == null || resource.data.published == true || isAuthorizedAdmin();
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Media Assets (Base64 stored in Firestore): Public read for assets; admin upload
+    match /media_assets/{assetId} {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // Unified Subscribers: Public can submit subscription; only admins can list or manage
+    match /subscribers/{subscriberId} {
+      allow create: if request.resource.data.email is string &&
+                       request.resource.data.email.size() > 3 &&
+                       request.resource.data.email.size() <= 254 &&
+                       request.resource.data.subscriptionStatus == 'active' &&
+                       request.resource.data.deliveryStatus in ['pending_manual', 'sent'] &&
+                       (request.resource.data.consentMarketing == true || request.resource.data.consentMarketing == false);
+      allow read: if isAuthorizedAdmin();
+      allow update, delete: if isAuthorizedAdmin();
+    }
+
+    // Legacy Coming-Soon Subscribers: Read/write only by authorized admin (for migration)
+    match /launchSubscribers/{subscriberId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // Appointments: Public can create with strict 'pending_review' status; only admins can view/manage
+    match /appointments/{appointmentId} {
+      allow create: if request.resource.data.fullName is string &&
+                       request.resource.data.email is string &&
+                       request.resource.data.preferredDate is string &&
+                       request.resource.data.preferredTime is string &&
+                       request.resource.data.status == 'pending_review' &&
+                       (!('assignedEmployeeId' in request.resource.data) || request.resource.data.assignedEmployeeId == null);
+      allow read: if isAuthorizedAdmin();
+      allow update, delete: if isAuthorizedAdmin();
+
+      // Appointment History subcollection: Admins only
+      match /history/{historyId} {
+        allow read, write: if isAuthorizedAdmin();
+      }
+    }
+
+    // Employees Directory: Strictly private to admins to protect employee personal data
+    match /employees/{employeeId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // Contact Inquiries: Public can submit inquiries with status 'new'; only admins can read and manage
+    match /contact_inquiries/{inquiryId} {
+      allow create: if request.resource.data.name is string &&
+                       request.resource.data.email is string &&
+                       request.resource.data.message is string &&
+                       request.resource.data.message.size() <= 4000 &&
+                       request.resource.data.status == 'new';
+      allow read, update, delete: if isAuthorizedAdmin();
+    }
+
+    // Newsletter Campaigns: Strictly admin access
+    match /campaigns/{campaignId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // Email Outbox (Manual & Future Dispatch): Strictly admin access
+    match /email_outbox/{outboxId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // Audit Logs: Immutable log records created by admins; updates and deletes are prevented
+    match /audit_logs/{logId} {
+      allow read: if isAuthorizedAdmin();
+      allow create: if isAuthorizedAdmin();
+      allow update, delete: if false; // Immutable audit trail
+    }
+  }
+}
