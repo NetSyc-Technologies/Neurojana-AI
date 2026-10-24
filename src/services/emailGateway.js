@@ -117,6 +117,8 @@ export class TrustedResendGateway extends EmailGateway {
 }
 
 // Active singleton instance for the frontend
+export const emailGateway = new ManualEmailGateway();
+
 const DEFAULT_LOGO_URL = 'https://neurojnaai.com/assets/logo.png';
 
 // Pre-built Branded Template Generators

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ManualEmailGateway,
+  emailGateway,
   renderAppointmentReceivedEmail,
   renderAppointmentApprovedCustomerEmail,
   renderAppointmentApprovedEmployeeEmail,
@@ -34,7 +35,9 @@ test('Google admin allowlist rejects unauthorized emails', () => {
 });
 
 test('ManualEmailGateway generates valid mailto: link for default email client', () => {
-  const gateway = new ManualEmailGateway();
+  const gateway = emailGateway;
+  assert.ok(gateway instanceof ManualEmailGateway);
+  assert.equal(typeof gateway.queueNotice, 'function');
   const link = gateway.generateMailtoLink(
     'client@example.com',
     'Consultation Confirmed: [NJA-APT-12345678]',
@@ -47,7 +50,7 @@ test('ManualEmailGateway generates valid mailto: link for default email client',
 });
 
 test('ManualEmailGateway exports clean CSV for legitimate marketing services', () => {
-  const gateway = new ManualEmailGateway();
+  const gateway = emailGateway;
   const subscribers = [
     { email: 'active@example.com', subscriptionStatus: 'active', consentMarketing: true, createdAt: '2026-01-01T00:00:00Z', source: 'homepage' },
     { email: 'optout@example.com', subscriptionStatus: 'unsubscribed', consentMarketing: false, createdAt: '2026-01-02T00:00:00Z', source: 'blog' },
