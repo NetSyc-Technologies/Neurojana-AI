@@ -17,9 +17,9 @@ export default function Footer() {
             <p className="footer-desc">
               Translating ideas into software that matters. Bespoke web applications, Android development, custom software engineering, and AI-enabled digital services.
             </p>
-            <div style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
-              <Mail size={16} color="#3b82f6" />
-              <a href="mailto:contact@neurojanaai.com" style={{ color: '#cbd5e1' }}>
+            <div className="footer-email">
+              <Mail size={16} />
+              <a href="mailto:contact@neurojanaai.com">
                 contact@neurojanaai.com
               </a>
             </div>

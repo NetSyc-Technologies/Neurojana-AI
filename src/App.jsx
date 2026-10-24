@@ -36,7 +36,7 @@ export default function App() {
   const isAdminRoute = location.pathname.startsWith('/admin') && location.pathname !== '/admin/login';
 
   return (
-    <>
+    <div className={isAdminRoute ? 'admin-site' : 'public-site'}>
       <ScrollToTop />
       {!isAdminRoute && <Header />}
       
@@ -65,6 +65,6 @@ export default function App() {
       </Routes>
 
       {!isAdminRoute && <Footer />}
-    </>
+    </div>
   );
 }

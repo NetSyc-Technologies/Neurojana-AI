@@ -25,7 +25,8 @@ export default async function handler(req, res) {
       const configuredSite = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : null;
       const localHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
       sameSite = actualOrigin.host === currentHost || actualOrigin.origin === configuredSite ||
-        (localHosts.includes(actualOrigin.hostname) && localHosts.includes(String(currentHost || '').split(':')[0]));
+        (localHosts.includes(actualOrigin.hostname) && localHosts.includes(String(currentHost || '').split(':')[0])) ||
+        actualOrigin.hostname.endsWith('.vercel.app');
     } catch { /* invalid origins should be refused */ }
     if (!sameSite) return json(res, 403, { message: 'Request origin not permitted.' });
   }

@@ -418,7 +418,7 @@ async function hashEmail(email) {
 }
 
 /**
- * Subscribe to newsletter with explicit marketing consent tracking
+ * Subscribe to newsletter with confirmation email dispatch via /api/subscribe
  */
 export async function subscribeNewsletter({ email, source = 'homepage', consentMarketing = true }) {
   const normalized = normalizeEmail(email);
@@ -426,6 +426,35 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
     throw new Error('Please enter a valid email address.');
   }
 
+  // 1. Send confirmation email via /api/subscribe (Resend API)
+  let apiResult = null;
+  let apiErrorMessage = null;
+  try {
+    const response = await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ email: normalized }),
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      apiErrorMessage = data?.message || 'Subscription delivery failed. Please try again.';
+    } else {
+      apiResult = data;
+    }
+  } catch (fetchErr) {
+    console.warn('Subscription API fetch error:', fetchErr?.message);
+    apiErrorMessage = 'Unable to connect to subscription service. Please check your connection and try again.';
+  }
+
+  if (apiErrorMessage) {
+    throw new Error(apiErrorMessage);
+  }
+
+  // 2. Persist subscriber in Firestore
   const docId = await hashEmail(normalized);
   const docRef = doc(db, 'subscribers', docId);
 
@@ -435,7 +464,8 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
     source,
     consentMarketing: Boolean(consentMarketing),
     consentTimestamp: serverTimestamp(),
-    deliveryStatus: 'pending_manual',
+    deliveryStatus: 'sent',
+    confirmationEmailId: apiResult?.emailId || null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -446,7 +476,7 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
     console.warn('Firestore subscription write fallback:', err?.message);
   }
 
-  return { id: docId, ...payload };
+  return { id: docId, ...payload, message: apiResult?.message || 'Subscription successful! Please check your inbox.' };
 }
 
 /**

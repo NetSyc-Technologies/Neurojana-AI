@@ -8,6 +8,7 @@ export default function NewsletterBand({ source = 'homepage' }) {
   const [consent, setConsent] = useState(true);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -22,11 +23,12 @@ export default function NewsletterBand({ source = 'homepage' }) {
 
     setLoading(true);
     try {
-      await subscribeNewsletter({
+      const res = await subscribeNewsletter({
         email: cleanEmail,
         source,
         consentMarketing: consent,
       });
+      setSuccessMsg(res?.message || 'Subscription successful! Please check your inbox.');
       setSuccess(true);
       setEmail('');
     } catch (err) {
@@ -41,13 +43,13 @@ export default function NewsletterBand({ source = 'homepage' }) {
       <div className="container">
         <div className="newsletter-box">
           <div className="eyebrow" style={{ margin: '0 auto 1rem' }}>
-            <span>ENGINEERING DISPATCH</span>
+            <span>LET’S STAY IN TOUCH</span>
           </div>
           <h2 id="newsletter-heading" style={{ fontSize: 'clamp(1.6rem, 2.8vw, 2.2rem)', marginBottom: '0.85rem' }}>
-            Stay informed on modern software & AI
+            Good things, occasionally.
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: '0 auto', maxWidth: '520px' }}>
-            Receive periodic insights, architectural breakdowns, and product updates from the Neurojana AI engineering team. No spam, ever.
+            Notes on design, software, and what we’re building. A thoughtful update from Neurojana AI, straight to your inbox.
           </p>
 
           {success ? (
@@ -67,8 +69,8 @@ export default function NewsletterBand({ source = 'homepage' }) {
                 <CheckCircle2 size={20} />
                 <span>You're on the list!</span>
               </div>
-              <p style={{ color: '#047857', fontSize: '0.92rem', marginTop: '0.5rem' }}>
-                Thank you for subscribing. We will share meaningful technology updates as we release them.
+              <p style={{ color: '#047857', fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                {successMsg || 'Subscription successful! Please check your inbox for confirmation.'}
               </p>
             </div>
           ) : (
