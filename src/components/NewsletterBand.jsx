@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 
 export default function NewsletterBand({ source = 'homepage' }) {
   const [email, setEmail] = useState('');
-  const [consent, setConsent] = useState(true);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -13,10 +12,11 @@ export default function NewsletterBand({ source = 'homepage' }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setError('');
 
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setError('Please enter a valid email address.');
       return;
     }
@@ -26,11 +26,10 @@ export default function NewsletterBand({ source = 'homepage' }) {
       const res = await subscribeNewsletter({
         email: cleanEmail,
         source,
-        consentMarketing: consent,
+        consentMarketing: true,
       });
       setSuccessMsg(res?.message || 'Subscription successful! Please check your inbox.');
       setSuccess(true);
-      setEmail('');
     } catch (err) {
       setError(err?.message || 'Something went wrong. Please try again or contact us directly.');
     } finally {
@@ -72,6 +71,10 @@ export default function NewsletterBand({ source = 'homepage' }) {
               <p style={{ color: '#047857', fontSize: '0.95rem', marginTop: '0.5rem' }}>
                 {successMsg || 'Subscription successful! Please check your inbox for confirmation.'}
               </p>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleSubmit} disabled={loading} style={{ marginTop: '1rem' }}>
+                {loading ? 'Requesting…' : 'Request another confirmation'}
+              </button>
+              {error && <p className="form-error" role="alert">{error}</p>}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="newsletter-form" noValidate>
@@ -79,14 +82,17 @@ export default function NewsletterBand({ source = 'homepage' }) {
                 <input
                   type="email"
                   className="form-control"
-                  placeholder="Enter your work email..."
+                  placeholder="name@company.com"
+                  autoComplete="email"
+                  maxLength={254}
+                  disabled={loading}
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
                   required
                   aria-label="Email address for newsletter"
                   aria-invalid={Boolean(error)}
                 />
-                {error && <span className="form-error">{error}</span>}
+                {error && <span className="form-error" role="alert">{error}</span>}
               </div>
 
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ alignSelf: 'flex-start' }}>

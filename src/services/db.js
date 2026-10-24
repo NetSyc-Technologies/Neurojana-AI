@@ -436,11 +436,11 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ email: normalized }),
+      body: JSON.stringify({ email: normalized, source, consentMarketing }),
     });
 
     const data = await response.json().catch(() => null);
-    if (!response.ok) {
+    if (!response.ok || !data?.emailId) {
       apiErrorMessage = data?.message || 'Subscription delivery failed. Please try again.';
     } else {
       apiResult = data;
@@ -453,6 +453,10 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
   if (apiErrorMessage) {
     throw new Error(apiErrorMessage);
   }
+
+  // The server normally persists the record; do not overwrite its timestamps or
+  // attempt a client update that Firestore correctly restricts to administrators.
+  if (apiResult?.persisted) return apiResult;
 
   // 2. Persist subscriber in Firestore
   const docId = await hashEmail(normalized);
@@ -473,7 +477,7 @@ export async function subscribeNewsletter({ email, source = 'homepage', consentM
   try {
     await setDoc(docRef, payload, { merge: true });
   } catch (err) {
-    console.warn('Firestore subscription write fallback:', err?.message);
+    throw new Error('Your confirmation email was sent, but we couldn’t save your subscription. Please contact us so we can complete it.');
   }
 
   return { id: docId, ...payload, message: apiResult?.message || 'Subscription successful! Please check your inbox.' };
@@ -582,17 +586,18 @@ export async function createAppointmentRequest(data) {
     updatedAt: serverTimestamp(),
   };
 
+  // A receipt is only valid after the appointment is durably saved.
+  await setDoc(docRef, payload);
   try {
-    await setDoc(docRef, payload);
-
-    // Write initial history record
+    // Public users cannot write administrative history. Failure here must not
+    // turn a successfully saved appointment into a failed booking.
     const historyCol = collection(db, 'appointments', appointmentId, 'history');
     await addDoc(historyCol, {
       status: 'pending_review',
       action: 'created_by_client',
       timestamp: serverTimestamp(),
       notes: 'Initial booking request submitted by client.',
-    });
+    }).catch(() => {});
 
     // Prepare manual outbox email notice for administrative dispatch
     const notice = renderAppointmentReceivedEmail({
@@ -612,7 +617,7 @@ export async function createAppointmentRequest(data) {
       ...notice,
     });
   } catch (err) {
-    console.warn('Firestore appointment save fallback:', err?.message);
+    console.warn('Appointment saved; optional notification could not be queued:', err?.message);
   }
 
   return { id: appointmentId, ...payload };
@@ -646,15 +651,26 @@ export async function updateAppointmentStatus(appointmentId, {
   if (!snap.exists()) throw new Error('Appointment not found.');
   const current = snap.data();
 
+  const effectiveDate = proposedDate || current.proposedDate || current.preferredDate;
+  const effectiveTime = proposedTime || current.proposedTime || current.preferredTime;
+  const isTimeAdjusted = Boolean(
+    (effectiveDate && effectiveDate !== current.preferredDate) ||
+    (effectiveTime && effectiveTime !== current.preferredTime)
+  );
+
   const updateData = {
     status,
+    scheduledDate: effectiveDate,
+    scheduledTime: effectiveTime,
+    proposedDate: effectiveDate,
+    proposedTime: effectiveTime,
     notes: notes || current.notes || '',
     updatedAt: serverTimestamp(),
   };
 
-  if (meetingLink) updateData.meetingLink = meetingLink;
-  if (proposedDate) updateData.proposedDate = proposedDate;
-  if (proposedTime) updateData.proposedTime = proposedTime;
+  if (meetingLink !== undefined && meetingLink !== null) {
+    updateData.meetingLink = meetingLink;
+  }
 
   if (employee) {
     updateData.assignedEmployeeId = employee.id;
@@ -671,71 +687,164 @@ export async function updateAppointmentStatus(appointmentId, {
     status,
     previousStatus: current.status,
     reason,
-    proposedDate,
-    proposedTime,
+    proposedDate: effectiveDate,
+    proposedTime: effectiveTime,
+    isTimeAdjusted,
     employeeId: employee?.id || null,
     actorEmail,
     timestamp: serverTimestamp(),
     notes,
   });
 
-  // Prepare corresponding email notices in email_outbox
+  // Prepare and dispatch corresponding email notices
+  let customerEmailSent = false;
+  let customerEmailId = null;
+  let customerEmailError = null;
+
   if (status === 'approved') {
     const custNotice = renderAppointmentApprovedCustomerEmail({
       fullName: current.fullName,
+      company: current.company || '',
       referenceId: current.referenceId || appointmentId,
       serviceName: current.serviceName,
-      date: proposedDate || current.preferredDate,
-      time: proposedTime || current.preferredTime,
+      date: effectiveDate,
+      time: effectiveTime,
       timezone: current.timezone,
-      meetingLink: meetingLink || current.meetingLink,
+      meetingLink: meetingLink !== undefined && meetingLink !== null ? meetingLink : (current.meetingLink || ''),
       notes,
+      originalDate: current.preferredDate,
+      originalTime: current.preferredTime,
+      isAdjusted: isTimeAdjusted,
+      assignedEmployeeName: employee?.fullName || current.assignedEmployeeName || '',
+      assignedEmployeeRole: employee?.role || '',
+      clientMessage: current.message || '',
     });
+
+    try {
+      const emailRes = await fetch('/api/send-appointment-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: current.email,
+          subject: custNotice.subject,
+          html: custNotice.html,
+          text: custNotice.text,
+          appointmentId,
+        }),
+      });
+      const emailData = await emailRes.json().catch(() => null);
+      if (emailRes.ok && emailData?.emailId) {
+        customerEmailSent = true;
+        customerEmailId = emailData.emailId;
+      } else {
+        customerEmailError = emailData?.message || 'Email delivery failed';
+        console.warn('Appointment email delivery warning:', customerEmailError);
+      }
+    } catch (err) {
+      customerEmailError = err?.message || 'Connection error';
+      console.warn('Failed to send appointment confirmation email:', err);
+    }
+
     await emailGateway.queueNotice({
       type: 'appointment_approved_customer',
       recipient: current.email,
       recipientName: current.fullName,
       appointmentId,
+      status: customerEmailSent ? 'sent' : 'pending_manual',
+      emailId: customerEmailId,
       ...custNotice,
     });
 
-    if (employee) {
+    if (employee && employee.email) {
       const empNotice = renderAppointmentApprovedEmployeeEmail({
         employeeName: employee.fullName,
         customerName: current.fullName,
         customerEmail: current.email,
         customerPhone: current.phone,
+        company: current.company || '',
         referenceId: current.referenceId || appointmentId,
         serviceName: current.serviceName,
-        date: proposedDate || current.preferredDate,
-        time: proposedTime || current.preferredTime,
+        date: effectiveDate,
+        time: effectiveTime,
         timezone: current.timezone,
+        meetingLink: meetingLink !== undefined && meetingLink !== null ? meetingLink : (current.meetingLink || ''),
         notes,
+        clientMessage: current.message || '',
       });
+
+      let empEmailSent = false;
+      try {
+        const empRes = await fetch('/api/send-appointment-confirmation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: employee.email,
+            subject: empNotice.subject,
+            html: empNotice.html,
+            text: empNotice.text,
+            appointmentId,
+          }),
+        });
+        const empData = await empRes.json().catch(() => null);
+        if (empRes.ok && empData?.emailId) {
+          empEmailSent = true;
+        }
+      } catch (empErr) {
+        console.warn('Failed to send employee notice email:', empErr);
+      }
+
       await emailGateway.queueNotice({
         type: 'appointment_approved_employee',
         recipient: employee.email,
         recipientName: employee.fullName,
         appointmentId,
         employeeId: employee.id,
+        status: empEmailSent ? 'sent' : 'pending_manual',
         ...empNotice,
       });
     }
   } else if (status === 'reschedule_proposed') {
     const reschedNotice = renderAppointmentRescheduledEmail({
       fullName: current.fullName,
+      company: current.company || '',
       referenceId: current.referenceId || appointmentId,
       serviceName: current.serviceName,
-      proposedDate: proposedDate || current.preferredDate,
-      proposedTime: proposedTime || current.preferredTime,
+      proposedDate: effectiveDate,
+      proposedTime: effectiveTime,
+      originalDate: current.preferredDate,
+      originalTime: current.preferredTime,
       timezone: current.timezone,
       reason,
+      notes,
     });
+
+    let reschedEmailSent = false;
+    try {
+      const reschedRes = await fetch('/api/send-appointment-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: current.email,
+          subject: reschedNotice.subject,
+          html: reschedNotice.html,
+          text: reschedNotice.text,
+          appointmentId,
+        }),
+      });
+      const reschedData = await reschedRes.json().catch(() => null);
+      if (reschedRes.ok && reschedData?.emailId) {
+        reschedEmailSent = true;
+      }
+    } catch (rErr) {
+      console.warn('Failed to send reschedule notice email:', rErr);
+    }
+
     await emailGateway.queueNotice({
       type: 'appointment_rescheduled_customer',
       recipient: current.email,
       recipientName: current.fullName,
       appointmentId,
+      status: reschedEmailSent ? 'sent' : 'pending_manual',
       ...reschedNotice,
     });
   }
@@ -748,7 +857,22 @@ export async function updateAppointmentStatus(appointmentId, {
     actorEmail,
   });
 
-  return { ...current, ...updateData };
+  return { ...current, ...updateData, customerEmailSent, customerEmailId, customerEmailError };
+}
+
+/**
+ * Admin: Delete appointment document and log the action
+ */
+export async function deleteAppointment(appointmentId, actorEmail = 'admin') {
+  const docRef = doc(db, 'appointments', appointmentId);
+  await deleteDoc(docRef);
+  await logAdminAction({
+    action: 'delete_appointment',
+    targetType: 'appointment',
+    targetId: appointmentId,
+    details: `Deleted appointment ${appointmentId}`,
+    actorEmail,
+  });
 }
 
 // ==================== EMPLOYEES DIRECTORY ====================

@@ -23,5 +23,6 @@ test('confirmation email contains required copy and opt-out link', () => {
   assert.match(emailHtml({unsubscribeUrl:url}),/Hurray!/);
   assert.match(emailHtml({unsubscribeUrl:url}),/Unsubscribe/);
   assert.match(emailHtml({unsubscribeUrl:url}),/logo\.png/);
-  assert.match(emailText({unsubscribeUrl:url}),/launching soon/);
+  assert.match(emailText({unsubscribeUrl:url}),/web applications/);
+  assert.doesNotMatch(emailText({unsubscribeUrl:url}),/launching soon/);
 });

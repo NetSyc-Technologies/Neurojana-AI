@@ -44,6 +44,7 @@ import {
   getAllSubscribers,
   getAllAppointments,
   updateAppointmentStatus,
+  deleteAppointment,
   getAllEmployees,
   saveEmployee,
   getAllInquiries,
@@ -151,12 +152,24 @@ export default function AdminDashboard() {
     loadDashboardData();
   }, [isAdmin, navigate]);
 
+  // Helper to open appointment modal with fresh form state
+  const openAppointmentModal = (apt, mode = 'approve') => {
+    setSelectedAppointment(apt);
+    setAppointmentModalMode(mode);
+    setAssignedEmployeeId(apt.assignedEmployeeId || '');
+    setMeetingLink(apt.meetingLink || '');
+    setAdminNotes(apt.notes || '');
+    setRescheduleDate(apt.scheduledDate || apt.proposedDate || apt.preferredDate || '');
+    setRescheduleTime(apt.scheduledTime || apt.proposedTime || apt.preferredTime || '11:00');
+    setRescheduleReason(apt.reason || '');
+  };
+
   // Handle appointment status transitions
   const handleAppointmentAction = async (status) => {
     if (!selectedAppointment) return;
     try {
       const assignedEmp = employees.find((e) => e.id === assignedEmployeeId) || null;
-      await updateAppointmentStatus(selectedAppointment.id, {
+      const result = await updateAppointmentStatus(selectedAppointment.id, {
         status,
         reason: rescheduleReason,
         proposedDate: rescheduleDate || null,
@@ -167,12 +180,49 @@ export default function AdminDashboard() {
         actorEmail: user?.email || 'admin',
       });
 
-      showToast(`Appointment status updated to ${status}. Notification prepared in outbox.`, 'success');
+      const isTimeAdjusted = Boolean(
+        (rescheduleDate && rescheduleDate !== selectedAppointment.preferredDate) ||
+        (rescheduleTime && rescheduleTime !== selectedAppointment.preferredTime)
+      );
+
+      if (status === 'approved') {
+        if (result?.customerEmailSent) {
+          showToast(`Appointment approved${isTimeAdjusted ? ' with adjusted time' : ''}! Confirmation email sent to ${selectedAppointment.email}.`, 'success');
+        } else {
+          showToast(`Appointment approved. Notice saved in outbox (${result?.customerEmailError || 'pending manual send'}).`, 'info');
+        }
+      } else if (status === 'reschedule_proposed') {
+        showToast(`Reschedule proposal dispatched to ${selectedAppointment.email}.`, 'success');
+      } else {
+        showToast(`Appointment status updated to ${status}.`, 'success');
+      }
+
       setSelectedAppointment(null);
       setAppointmentModalMode('');
       loadDashboardData();
     } catch (err) {
       showToast('Failed to update appointment: ' + err.message, 'error');
+    }
+  };
+
+  // Handle appointment deletion
+  const handleDeleteAppointment = async (apt) => {
+    if (!apt) return;
+    const refCode = apt.referenceId || apt.id;
+    const clientName = apt.fullName || 'Client';
+    if (!window.confirm(`Are you sure you want to delete appointment ${refCode} for ${clientName}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await deleteAppointment(apt.id, user?.email || 'admin');
+      showToast(`Appointment ${refCode} has been deleted.`, 'success');
+      if (selectedAppointment?.id === apt.id) {
+        setSelectedAppointment(null);
+        setAppointmentModalMode('');
+      }
+      loadDashboardData();
+    } catch (err) {
+      showToast('Failed to delete appointment: ' + err.message, 'error');
     }
   };
 
@@ -400,12 +450,22 @@ export default function AdminDashboard() {
                             <span className={`status-pill ${apt.status}`}>{apt.status.replace('_', ' ')}</span>
                           </td>
                           <td>
-                            <button
-                              onClick={() => { setSelectedAppointment(apt); setAppointmentModalMode('approve'); }}
-                              className="btn btn-secondary btn-sm"
-                            >
-                              <span>Review</span>
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                              <button
+                                onClick={() => openAppointmentModal(apt, 'approve')}
+                                className="btn btn-secondary btn-sm"
+                              >
+                                <span>Review</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAppointment(apt)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: '#ef4444' }}
+                                title="Delete Appointment"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -469,10 +529,18 @@ export default function AdminDashboard() {
                           <td>
                             <div style={{ display: 'flex', gap: '0.4rem' }}>
                               <button
-                                onClick={() => { setSelectedAppointment(apt); setAppointmentModalMode('approve'); }}
+                                onClick={() => openAppointmentModal(apt, 'approve')}
                                 className="btn btn-secondary btn-sm"
                               >
                                 <span>Manage</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAppointment(apt)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: '#ef4444' }}
+                                title="Delete Appointment"
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
@@ -1075,8 +1143,55 @@ export default function AdminDashboard() {
 
             <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
               <div><strong>Service:</strong> {selectedAppointment.serviceName}</div>
-              <div><strong>Requested:</strong> {selectedAppointment.preferredDate} at {selectedAppointment.preferredTime} ({selectedAppointment.timezone})</div>
-              {selectedAppointment.message && <div style={{ marginTop: '0.5rem' }}><strong>Requirements:</strong> {selectedAppointment.message}</div>}
+              <div><strong>Client Requested:</strong> {selectedAppointment.preferredDate} at {selectedAppointment.preferredTime} ({selectedAppointment.timezone})</div>
+              {selectedAppointment.company && <div><strong>Company / Org:</strong> {selectedAppointment.company}</div>}
+              {selectedAppointment.message && (
+                <div style={{ marginTop: '0.5rem', background: '#fff', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <strong>Client Brief:</strong> {selectedAppointment.message}
+                </div>
+              )}
+            </div>
+
+            {/* ADJUST SCHEDULED DATE & TIME */}
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <label className="form-label" style={{ margin: 0, fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <CalendarCheck size={16} />
+                  <span>Scheduled Consultation Slot (Adjust if Required)</span>
+                </label>
+                {(rescheduleDate !== selectedAppointment.preferredDate || rescheduleTime !== selectedAppointment.preferredTime) && (
+                  <span style={{ fontSize: '0.75rem', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    ⚡ Schedule Adjusted
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#4b5563', margin: '0 0 0.75rem 0' }}>
+                You can adjust the consultation date/time below. The confirmed schedule and full briefing will be sent directly to the client.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '0.25rem' }}>
+                    Confirmed Date
+                  </label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '0.25rem' }}>
+                    Confirmed Time
+                  </label>
+                  <input
+                    type="time"
+                    className="form-control"
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
@@ -1105,24 +1220,55 @@ export default function AdminDashboard() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Admin Notes</label>
+              <label className="form-label">Admin Notes & Agenda (Included in Confirmation Email)</label>
               <textarea
                 className="form-control"
                 rows="2"
-                placeholder="Notes on client requirements or agenda..."
+                placeholder="Notes on client requirements, preparation agenda, or instructions..."
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
               />
             </div>
 
+            {appointmentModalMode === 'reschedule' && (
+              <div className="form-group" style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '0.75rem', borderRadius: '8px' }}>
+                <label className="form-label" style={{ color: '#92400e', fontWeight: 700 }}>Reschedule Reason (Sent to Client)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Lead specialist has a conflicting architectural review at that slot"
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
               <button onClick={() => handleAppointmentAction('approved')} className="btn btn-primary">
                 <CheckCircle2 size={16} />
-                <span>Approve & Queue Notice</span>
+                <span>Approve & Send Confirmation</span>
               </button>
-              <button onClick={() => handleAppointmentAction('rejected')} className="btn btn-secondary" style={{ color: '#ef4444' }}>
+              {appointmentModalMode === 'reschedule' ? (
+                <button onClick={() => handleAppointmentAction('reschedule_proposed')} className="btn btn-secondary" style={{ color: '#2563eb' }}>
+                  <Send size={16} />
+                  <span>Send Reschedule Proposal</span>
+                </button>
+              ) : (
+                <button onClick={() => setAppointmentModalMode('reschedule')} className="btn btn-secondary">
+                  <span>Propose Reschedule...</span>
+                </button>
+              )}
+              <button onClick={() => handleAppointmentAction('rejected')} className="btn btn-secondary" style={{ color: '#f59e0b' }}>
                 <XCircle size={16} />
                 <span>Reject</span>
+              </button>
+              <button
+                onClick={() => handleDeleteAppointment(selectedAppointment)}
+                className="btn btn-secondary"
+                style={{ color: '#ef4444' }}
+              >
+                <Trash2 size={16} />
+                <span>Delete</span>
               </button>
               <button onClick={() => setSelectedAppointment(null)} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>
                 <span>Close</span>

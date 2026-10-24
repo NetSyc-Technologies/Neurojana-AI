@@ -1,110 +1,145 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Shield, Zap, Target, CheckCircle2, ArrowRight } from 'lucide-react';
-import NewsletterBand from '../components/NewsletterBand.jsx';
-
+import React from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Code2, Smartphone, Workflow } from "lucide-react";
+import NewsletterBand from "../components/NewsletterBand.jsx";
+import PageIntro, { SoftwareSketch } from "../components/PageIntro.jsx";
+const principles = [
+  [
+    "Understand first.",
+    "We start with your business, your users, and the problem worth solving. The technology follows.",
+  ],
+  [
+    "Make it useful.",
+    "Clear interfaces, dependable performance, and the details that make everyday work easier.",
+  ],
+  [
+    "Build to last.",
+    "Maintainable code and considered architecture give your software room to grow with you.",
+  ],
+  [
+    "Work together.",
+    "A shared direction, clear communication, and room for feedback throughout the project.",
+  ],
+];
 export default function AboutPage() {
-  const values = [
-    {
-      title: 'Architectural Rigor',
-      desc: 'We do not rush to hack together fragile code. Every data schema, component tree, and API contract is designed for maintainability and clear failure modes.',
-    },
-    {
-      title: 'Sub-Second Performance',
-      desc: 'Bloat is the enemy of usability. We engineer applications that load instantly and respond immediately to user input across all devices and network conditions.',
-    },
-    {
-      title: 'Transparent Collaboration',
-      desc: 'Zero black-box obscurity. We provide clear sprint milestones, honest status tracking, and complete intellectual property ownership handover.',
-    },
-    {
-      title: 'Practical Innovation',
-      desc: 'We evaluate new technologies—including artificial intelligence models—against real business utility, adopting only what creates measurable value.',
-    },
-  ];
-
   return (
-    <main id="main">
-      {/* Header Banner */}
-      <section className="section" style={{ paddingBottom: '3rem' }}>
-        <div className="container">
-          <div style={{ maxWidth: '780px' }}>
-            <div className="eyebrow">
-              <span>ABOUT NEUROJANA AI</span>
-            </div>
-            <h1>Bespoke software engineered for enduring reliability.</h1>
-            <p style={{ fontSize: '1.25rem', marginTop: '1.25rem', color: 'var(--text-secondary)' }}>
-              Neurojana AI is a digital engineering company providing website development, interactive web applications, Android applications, and custom software systems for forward-thinking organizations.
+    <main id="main" className="editorial-page about-page">
+      <PageIntro
+        eyebrow="ABOUT NEUROJANA AI"
+        title={
+          <>
+            Good software starts
+            <br />
+            with <em>understanding.</em>
+          </>
+        }
+        aside={
+          <div className="intro-note">
+            <img src="/assets/logo.png" alt="Neurojana AI official logo" />
+            <p>
+              An IT services company.
+              <br />A partner in what’s next.
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* Mission & Vision Grid */}
-      <section className="section" style={{ background: 'var(--bg-surface)' }}>
-        <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '3rem' }}>
-            <div>
-              <div style={{ display: 'inline-flex', padding: '0.65rem', background: 'var(--brand-primary-light)', color: 'var(--brand-primary)', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem' }}>
-                <Target size={28} />
-              </div>
-              <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Our Mission</h2>
-              <p>
-                Our mission is to translate complex business problems into elegant, dependable software systems that empower our clients to operate faster, communicate clearly, and scale sustainably.
-              </p>
-            </div>
-
-            <div>
-              <div style={{ display: 'inline-flex', padding: '0.65rem', background: '#ecfdf5', color: '#059669', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem' }}>
-                <Zap size={28} />
-              </div>
-              <h2 style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>Our Engineering Philosophy</h2>
-              <p>
-                We believe exceptional software is defined as much by what is omitted as what is built. By rejecting unnecessary dependencies and adhering to web standards, we build digital products that endure.
-              </p>
-            </div>
+        }
+      >
+        <p>
+          We turn business ideas into websites, web applications, Android apps,
+          and custom software — with care for the people who use them.
+        </p>
+      </PageIntro>
+      <section className="section about-story">
+        <div className="container story-grid">
+          <SoftwareSketch />
+          <div className="story-copy">
+            <span className="eyebrow">PURPOSE, BEFORE TECHNOLOGY</span>
+            <h2>
+              Built around
+              <br />
+              <em>your business.</em>
+            </h2>
+            <p>
+              Neurojana AI brings design and software development together. From
+              a company’s first website to the systems behind its daily
+              operations, we help make the next step practical.
+            </p>
+            <p>
+              AI is one part of our toolkit. We use it where it adds value,
+              alongside the web, mobile, and software engineering your project
+              needs.
+            </p>
+            <Link to="/services" className="text-link">
+              Explore our services <ArrowRight size={17} />
+            </Link>
           </div>
         </div>
       </section>
-
-      {/* Core Values */}
-      <section className="section">
+      <section className="section principles-section">
         <div className="container">
-          <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 3.5rem' }}>
-            <div className="eyebrow" style={{ margin: '0 auto 1rem' }}>
-              <span>OUR CORE PRINCIPLES</span>
+          <div className="section-heading-row">
+            <div>
+              <span className="eyebrow">HOW WE THINK</span>
+              <h2>
+                A few things
+                <br />
+                we <em>stand by.</em>
+              </h2>
             </div>
-            <h2>What sets our work apart</h2>
+            <p>
+              The way we work matters just as much as the software we deliver.
+            </p>
           </div>
-
-          <div className="card-grid">
-            {values.map((v) => (
-              <div key={v.title} className="service-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <CheckCircle2 size={20} color="#2563eb" />
-                  <h3 style={{ fontSize: '1.2rem', margin: 0 }}>{v.title}</h3>
-                </div>
-                <p>{v.desc}</p>
-              </div>
+          <div className="principle-grid">
+            {principles.map(([title, copy], i) => (
+              <article key={title} className="principle-item">
+                <span className="item-number">0{i + 1}</span>
+                <h3>{title}</h3>
+                <p>{copy}</p>
+              </article>
             ))}
           </div>
         </div>
       </section>
-
-      {/* Consultation Banner */}
-      <section className="section" style={{ background: '#0b172d', color: '#fff', textAlign: 'center' }}>
-        <div className="container" style={{ maxWidth: '640px' }}>
-          <h2 style={{ color: '#fff', marginBottom: '1rem' }}>Work with Neurojana AI</h2>
-          <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>
-            Have a project in mind or need an experienced technical team to build your next web or mobile application?
-          </p>
-          <Link to="/book-appointment" className="btn btn-primary btn-lg">
-            <span>Book a Consultation</span>
-            <ArrowRight size={18} />
+      <section className="section">
+        <div className="container capability-strip">
+          {[
+            [
+              Code2,
+              "Websites & web applications",
+              "From your online presence to the platform your business runs on.",
+            ],
+            [
+              Smartphone,
+              "Android applications",
+              "Purposeful mobile experiences, designed for everyday use.",
+            ],
+            [
+              Workflow,
+              "Custom software & AI",
+              "Tools, integrations, and automation built around your workflow.",
+            ],
+          ].map(([Icon, title, copy]) => (
+            <article key={title}>
+              <Icon size={24} strokeWidth={1.4} />
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section className="container">
+        <div className="editorial-cta">
+          <div>
+            <span className="eyebrow">LET’S BUILD SOMETHING USEFUL</span>
+            <h2>
+              Your idea. <em>Our next conversation.</em>
+            </h2>
+          </div>
+          <Link to="/book-appointment" className="btn btn-primary">
+            Book a consultation <ArrowRight size={17} />
           </Link>
         </div>
       </section>
-
       <NewsletterBand source="about" />
     </main>
   );

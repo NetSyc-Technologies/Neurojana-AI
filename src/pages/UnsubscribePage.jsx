@@ -73,7 +73,7 @@ export default function UnsubscribePage() {
                   <input
                     type="email"
                     className="form-control"
-                    placeholder="your-email@company.com"
+                    placeholder="name@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required

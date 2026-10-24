@@ -88,4 +88,70 @@ test('Appointment notification templates include reference code and truthful det
   assert.match(approved.subject, /Confirmed/);
   assert.match(approved.text, /https:\/\/meet\.google\.com\/abc-def-ghi/);
   assert.match(approved.html, /Confirmed Schedule/);
+
+  // Test schedule adjustment notice & complete metadata
+  const approvedAdjusted = renderAppointmentApprovedCustomerEmail({
+    fullName: 'Sarah Connor',
+    company: 'Cyberdyne Systems',
+    referenceId: 'NJA-APT-5544BB22',
+    serviceName: 'AI Integrations & Workflow Automation',
+    date: '2026-11-08',
+    time: '16:00',
+    timezone: 'Asia/Kolkata',
+    originalDate: '2026-11-07',
+    originalTime: '10:00',
+    isAdjusted: true,
+    meetingLink: 'https://meet.google.com/xyz-123-abc',
+    notes: 'Focusing on LLM security & data pipelines.',
+    assignedEmployeeName: 'John Doe',
+    assignedEmployeeRole: 'Principal AI Architect',
+    clientMessage: 'Need semantic vector search over internal manuals.',
+  });
+
+  assert.match(approvedAdjusted.subject, /Schedule Updated/);
+  assert.match(approvedAdjusted.html, /Cyberdyne Systems/);
+  assert.match(approvedAdjusted.html, /Schedule Adjusted/);
+  assert.match(approvedAdjusted.html, /John Doe/);
+  assert.match(approvedAdjusted.html, /Principal AI Architect/);
+  assert.match(approvedAdjusted.html, /Need semantic vector search/);
+  assert.match(approvedAdjusted.text, /SCHEDULE ADJUSTED BY SPECIALIST/);
+
+  const empNotice = renderAppointmentApprovedEmployeeEmail({
+    employeeName: 'John Doe',
+    customerName: 'Sarah Connor',
+    customerEmail: 'sarah@cyberdyne.com',
+    customerPhone: '+91 98765 43210',
+    company: 'Cyberdyne Systems',
+    referenceId: 'NJA-APT-5544BB22',
+    serviceName: 'AI Integrations',
+    date: '2026-11-08',
+    time: '16:00',
+    timezone: 'Asia/Kolkata',
+    meetingLink: 'https://meet.google.com/xyz-123-abc',
+    notes: 'High priority enterprise lead.',
+    clientMessage: 'Looking for prompt engineering guidelines.',
+  });
+  assert.match(empNotice.subject, /Staff Assignment/);
+  assert.match(empNotice.html, /sarah@cyberdyne\.com/);
+  assert.match(empNotice.html, /Cyberdyne Systems/);
+  assert.match(empNotice.text, /High priority enterprise lead/);
+
+  const resched = renderAppointmentRescheduledEmail({
+    fullName: 'Sarah Connor',
+    referenceId: 'NJA-APT-5544BB22',
+    serviceName: 'AI Integrations',
+    proposedDate: '2026-11-12',
+    proposedTime: '11:00',
+    timezone: 'Asia/Kolkata',
+    reason: 'Lead engineer attending developer summit',
+  });
+  assert.match(resched.subject, /Reschedule Proposed/);
+  assert.match(resched.html, /developer summit/);
+  assert.match(resched.text, /NJA-APT-5544BB22/);
+
+  // Logo presence checks across all templates
+  assert.match(notice.html, /assets\/logo\.png/);
+  assert.match(approved.html, /assets\/logo\.png/);
+  assert.match(empNotice.html, /assets\/logo\.png/);
+  assert.match(resched.html, /assets\/logo\.png/);
 });

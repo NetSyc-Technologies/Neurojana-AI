@@ -1,119 +1,175 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { getPublishedBlogPosts } from '../services/db.js';
-import { Clock, ArrowRight, Search, Tag } from 'lucide-react';
-import NewsletterBand from '../components/NewsletterBand.jsx';
-
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Search, BookOpen } from "lucide-react";
+import { getPublishedBlogPosts } from "../services/db.js";
+import NewsletterBand from "../components/NewsletterBand.jsx";
+import PageIntro from "../components/PageIntro.jsx";
 export default function BlogPage() {
   const [posts, setPosts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTag, setSelectedTag] = useState('All');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTag, setSelectedTag] = useState("All");
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState("");
   useEffect(() => {
-    getPublishedBlogPosts().then((res) => {
-      setPosts(res);
-      setLoading(false);
-    });
+    let active = true;
+    getPublishedBlogPosts()
+      .then((list) => {
+        if (active) setPosts(list);
+      })
+      .catch(() => {
+        if (active)
+          setError("Articles could not be loaded. Please try again shortly.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
-
-  const allTags = ['All', ...new Set(posts.flatMap((p) => p.tags || []))];
-
-  const filteredPosts = posts.filter((post) => {
-    const matchesSearch =
-      post.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      post.summary?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTag = selectedTag === 'All' || (post.tags && post.tags.includes(selectedTag));
-    return matchesSearch && matchesTag;
-  });
-
+  const allTags = ["All", ...new Set(posts.flatMap((p) => p.tags || []))];
+  const filteredPosts = posts.filter(
+    (post) =>
+      ((post.title || "") + " " + (post.summary || ""))
+        .toLowerCase()
+        .includes(searchTerm.trim().toLowerCase()) &&
+      (selectedTag === "All" || post.tags?.includes(selectedTag)),
+  );
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedTag("All");
+  };
   return (
-    <main id="main">
-      <section className="section" style={{ paddingBottom: '2.5rem' }}>
-        <div className="container">
-          <div style={{ maxWidth: '720px' }}>
-            <div className="eyebrow">
-              <span>ENGINEERING NOTEBOOK</span>
-            </div>
-            <h1>Insights, architectures, and engineering perspectives.</h1>
-            <p style={{ fontSize: '1.2rem', marginTop: '1rem', color: 'var(--text-secondary)' }}>
-              Practical articles from the Neurojana AI engineering team on scalable web systems, database design, and AI automation.
-            </p>
+    <main id="main" className="editorial-page journal-page">
+      <PageIntro
+        eyebrow="THE NEUROJANA JOURNAL"
+        title={
+          <>
+            Ideas, notes,
+            <br />
+            and <em>perspectives.</em>
+          </>
+        }
+        aside={
+          <div className="journal-mark" aria-hidden="true">
+            <BookOpen size={64} strokeWidth={0.8} />
+            <span>From the studio</span>
           </div>
-
-          {/* Search & Tag Bar */}
-          <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ maxWidth: '480px', position: 'relative' }}>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Search articles by title or keyword..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: '2.75rem' }}
-                aria-label="Search articles"
-              />
-              <Search size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        }
+      >
+        <p>
+          Thoughts on building better software. Explore web development, mobile
+          experiences, and the decisions behind useful digital products.
+        </p>
+      </PageIntro>
+      <section className="section journal-section">
+        <div className="container">
+          <div className="journal-toolbar">
+            <div className="journal-tabs" aria-label="Article categories">
               {allTags.map((tag) => (
                 <button
                   key={tag}
+                  type="button"
                   onClick={() => setSelectedTag(tag)}
-                  className={`btn btn-sm ${selectedTag === tag ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ borderRadius: 'var(--radius-full)', fontSize: '0.8rem' }}
+                  aria-pressed={selectedTag === tag}
+                  className={selectedTag === tag ? "active" : ""}
                 >
-                  {tag}
+                  {tag === "All" ? "All articles" : tag}
                 </button>
               ))}
             </div>
+            <div className="journal-search">
+              <Search size={17} aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search articles"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search articles"
+              />
+            </div>
           </div>
-        </div>
-      </section>
-
-      {/* Posts List */}
-      <section className="section" style={{ paddingTop: '1rem' }}>
-        <div className="container">
-          {loading ? (
-            <p style={{ textAlign: 'center', padding: '3rem 0' }}>Loading articles...</p>
+          <div className="journal-count" role="status">
+            {loading
+              ? "Opening the notebook…"
+              : filteredPosts.length +
+                (filteredPosts.length === 1 ? " article" : " articles")}
+          </div>
+          {error ? (
+            <div className="editorial-empty" role="alert">
+              <h2>We couldn’t load the journal.</h2>
+              <p>{error}</p>
+            </div>
+          ) : loading ? (
+            <div className="content-skeleton" aria-label="Loading articles" />
           ) : filteredPosts.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '4rem 1rem', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
-              <h3>No articles found</h3>
-              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Try adjusting your search query or tag filter.</p>
+            <div className="editorial-empty">
+              <BookOpen size={32} strokeWidth={1.2} />
+              <h2>
+                {posts.length
+                  ? "No matches this time."
+                  : "The next chapter is on its way."}
+              </h2>
+              <p>
+                {posts.length
+                  ? "Try a different search or explore all articles."
+                  : "New notes on design, development, and what we’re learning will appear here."}
+              </p>
+              {posts.length > 0 && (
+                <button className="btn btn-secondary" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2rem' }}>
-              {filteredPosts.map((post) => (
-                <article key={post.id} className="service-card" style={{ padding: '2.25rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                    {post.tags?.map((tag) => (
-                      <span key={tag} className="status-pill draft" style={{ fontSize: '0.72rem' }}>
-                        {tag}
-                      </span>
-                    ))}
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: 'auto' }}>
-                      <Clock size={12} />
-                      {post.readTime || '4 min read'}
-                    </span>
-                  </div>
-
-                  <h2 style={{ fontSize: '1.4rem', marginBottom: '0.75rem', lineHeight: 1.35 }}>
-                    <Link to={`/blog/${post.slug}`} style={{ color: 'inherit' }}>
-                      {post.title}
-                    </Link>
-                  </h2>
-
-                  <p style={{ fontSize: '0.96rem', lineHeight: 1.65 }}>{post.summary}</p>
-
-                  <div style={{ marginTop: 'auto', paddingTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                      {post.author || 'Neurojana AI'}
-                    </span>
-                    <Link to={`/blog/${post.slug}`} className="card-link">
-                      <span>Read Article</span>
-                      <ArrowRight size={14} />
-                    </Link>
+            <div className="journal-grid">
+              {filteredPosts.map((post, i) => (
+                <article
+                  key={post.id}
+                  className={
+                    "journal-card " + (i === 0 ? "journal-featured" : "")
+                  }
+                >
+                  <Link
+                    to={"/blog/" + post.slug}
+                    className="journal-cover"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  >
+                    {post.coverImage ? (
+                      <img src={post.coverImage} alt="" loading="lazy" />
+                    ) : (
+                      <div className={"journal-art art-" + (i % 3)}>
+                        <span>NEUROJANA / NOTES</span>
+                        <div className="journal-art-lines">
+                          <i />
+                          <i />
+                          <i />
+                          <i />
+                        </div>
+                        <span>{post.tags?.[0] || "Ideas & engineering"}</span>
+                      </div>
+                    )}
+                  </Link>
+                  <div className="journal-card-body">
+                    <div className="article-meta">
+                      <span>{post.tags?.[0] || "Engineering"}</span>
+                      <span>{post.readTime || "4 min read"}</span>
+                    </div>
+                    <h2>
+                      <Link to={"/blog/" + post.slug}>{post.title}</Link>
+                    </h2>
+                    <p>{post.summary}</p>
+                    <div className="journal-card-footer">
+                      <span>{post.author || "Neurojana AI"}</span>
+                      <Link
+                        to={"/blog/" + post.slug}
+                        className="text-link"
+                        aria-label={"Read " + post.title}
+                      >
+                        Read article <ArrowRight size={17} />
+                      </Link>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -121,7 +177,6 @@ export default function BlogPage() {
           )}
         </div>
       </section>
-
       <NewsletterBand source="blog" />
     </main>
   );

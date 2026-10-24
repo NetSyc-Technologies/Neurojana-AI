@@ -1,98 +1,187 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { getPublishedProjects } from '../services/db.js';
-import { Layers, ArrowRight, ExternalLink, ShieldCheck } from 'lucide-react';
-import NewsletterBand from '../components/NewsletterBand.jsx';
-
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
+import DOMPurify from "dompurify";
+import { getPublishedProjects } from "../services/db.js";
+import NewsletterBand from "../components/NewsletterBand.jsx";
+import PageIntro, { SoftwareSketch } from "../components/PageIntro.jsx";
 export default function PortfolioPage() {
+  const { slug } = useParams();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState("");
   useEffect(() => {
-    getPublishedProjects().then((res) => {
-      setProjects(res);
-      setLoading(false);
-    });
+    let active = true;
+    getPublishedProjects()
+      .then((list) => {
+        if (active) setProjects(list);
+      })
+      .catch(() => {
+        if (active)
+          setError("We couldn’t load the projects. Please try again shortly.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
-
-  return (
-    <main id="main">
-      <section className="section" style={{ paddingBottom: '3rem' }}>
-        <div className="container">
-          <div style={{ maxWidth: '720px' }}>
-            <div className="eyebrow">
-              <span>SELECTED WORK</span>
+  const project = projects.find((p) => p.slug === slug);
+  if (slug && !loading)
+    return (
+      <main id="main" className="editorial-page">
+        <PageIntro
+          eyebrow="SELECTED WORK"
+          title={project?.title || "Project not found."}
+        >
+          <p>
+            {project?.summary ||
+              "This case study may have moved or is not yet published."}
+          </p>
+          <Link className="text-link" to="/portfolio">
+            <ArrowLeft size={16} /> All work
+          </Link>
+        </PageIntro>
+        {project && (
+          <section className="section">
+            <div className="container project-detail">
+              {project.coverImage && (
+                <img
+                  className="project-detail-cover"
+                  src={project.coverImage}
+                  alt={project.title}
+                />
+              )}
+              {project.content && (
+                <div
+                  className="prose"
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(project.content),
+                  }}
+                />
+              )}
+              {project.description && <p>{project.description}</p>}
+              <Link to="/contact" className="btn btn-primary">
+                Discuss a similar project <ArrowRight size={16} />
+              </Link>
             </div>
-            <h1>Engineered software in production.</h1>
-            <p style={{ fontSize: '1.2rem', marginTop: '1rem', color: 'var(--text-secondary)' }}>
-              Explore real-world applications, client platforms, and custom software systems delivered by Neurojana AI.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="section" style={{ paddingTop: '1rem' }}>
+          </section>
+        )}
+        <NewsletterBand source="portfolio" />
+      </main>
+    );
+  return (
+    <main id="main" className="editorial-page portfolio-page">
+      <PageIntro
+        eyebrow="SELECTED WORK"
+        title={
+          <>
+            Ideas made
+            <br />
+            <em>real.</em>
+          </>
+        }
+        aside={
+          <p className="intro-margin-note">
+            Web. Mobile. Custom software.
+            <br />
+            Built with purpose.
+          </p>
+        }
+      >
+        <p>
+          A closer look at the digital products and platforms we build.
+          Thoughtful design, considered engineering, and practical outcomes.
+        </p>
+      </PageIntro>
+      <section className="section work-section">
         <div className="container">
+          <div className="collection-heading">
+            <span>THE WORK</span>
+            <span>
+              {loading
+                ? "Loading…"
+                : projects.length
+                  ? String(projects.length).padStart(2, "0") + " projects"
+                  : "Case studies"}
+            </span>
+          </div>
           {loading ? (
-            <p style={{ textAlign: 'center', padding: '3rem 0' }}>Loading portfolio...</p>
+            <div
+              className="content-skeleton"
+              role="status"
+              aria-label="Loading projects"
+            />
+          ) : error ? (
+            <div className="editorial-empty" role="alert">
+              <h2>We’ll be right back.</h2>
+              <p>{error}</p>
+            </div>
           ) : projects.length === 0 ? (
-            /* Honest, polished empty state honoring client confidentiality */
-            <div style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-xl)',
-              padding: '4rem 2rem',
-              textAlign: 'center',
-              maxWidth: '720px',
-              margin: '0 auto',
-              boxShadow: 'var(--shadow-sm)',
-            }}>
-              <div style={{
-                display: 'inline-flex',
-                padding: '1rem',
-                background: 'var(--brand-primary-light)',
-                color: 'var(--brand-primary)',
-                borderRadius: '50%',
-                marginBottom: '1.5rem',
-              }}>
-                <ShieldCheck size={36} />
-              </div>
-              <h2 style={{ fontSize: '1.65rem', marginBottom: '0.75rem' }}>Client Confidentiality & Clearance in Progress</h2>
-              <p style={{ maxWidth: '520px', margin: '0 auto 2rem', color: 'var(--text-secondary)', fontSize: '1.02rem', lineHeight: 1.7 }}>
-                We strictly protect the proprietary code and commercial privacy of our clients. Complete case studies and architecture deep dives are published only following formal client approval.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div className="work-preview">
+              <SoftwareSketch />
+              <div className="work-preview-copy">
+                <span className="eyebrow">
+                  <LockKeyhole size={14} /> CLIENT PRIVACY, ALWAYS
+                </span>
+                <h2>
+                  Good work.
+                  <br />
+                  <em>Shared with care.</em>
+                </h2>
+                <p>
+                  We publish case studies with our clients’ permission. While we
+                  prepare the next collection, let’s talk about what we could
+                  build for you.
+                </p>
                 <Link to="/contact" className="btn btn-primary">
-                  <span>Request Private Technical Demos</span>
-                  <ArrowRight size={16} />
+                  Discuss your project <ArrowRight size={17} />
                 </Link>
-                <Link to="/services" className="btn btn-secondary">
-                  <span>Explore What We Can Build</span>
+                <Link to="/services" className="text-link">
+                  Explore our services <ArrowRight size={16} />
                 </Link>
+                <small>Illustrative interface — not a client project.</small>
               </div>
             </div>
           ) : (
-            <div className="card-grid">
-              {projects.map((proj) => (
-                <div key={proj.id} className="service-card">
-                  {proj.coverImage && (
-                    <div style={{ height: '200px', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: '1.25rem', background: '#f1f5f9' }}>
-                      <img src={proj.coverImage} alt={proj.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                  )}
-                  <h3>{proj.title}</h3>
-                  <p>{proj.summary}</p>
-                  <Link to={`/portfolio/${proj.slug}`} className="card-link" style={{ marginTop: 'auto' }}>
-                    <span>View Case Study</span>
-                    <ArrowRight size={14} />
+            <div className="work-grid">
+              {projects.map((p, i) => (
+                <article className="work-card" key={p.id}>
+                  <Link
+                    to={"/portfolio/" + p.slug}
+                    className="work-card-image"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  >
+                    {p.coverImage ? (
+                      <img src={p.coverImage} alt="" loading="lazy" />
+                    ) : (
+                      <SoftwareSketch />
+                    )}
                   </Link>
-                </div>
+                  <div className="work-card-heading">
+                    <h2>
+                      <Link to={"/portfolio/" + p.slug}>{p.title}</Link>
+                    </h2>
+                    <span className="item-number">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <p>{p.summary}</p>
+                  <Link
+                    className="text-link"
+                    to={"/portfolio/" + p.slug}
+                    aria-label={"View " + p.title}
+                  >
+                    View case study <ArrowRight size={17} />
+                  </Link>
+                </article>
               ))}
             </div>
           )}
         </div>
       </section>
-
       <NewsletterBand source="portfolio" />
     </main>
   );

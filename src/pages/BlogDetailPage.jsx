@@ -12,15 +12,16 @@ export default function BlogDetailPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     getBlogPostBySlug(slug).then((res) => {
       setPost(res);
       setLoading(false);
-    });
+    }).catch(() => { setPost(null); setLoading(false); });
   }, [slug]);
 
-  const handleShare = () => {
+  const handleShare = async () => {
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
+      try { await navigator.clipboard.writeText(window.location.href); } catch { return; }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -51,7 +52,7 @@ export default function BlogDetailPage() {
   const sanitizedContent = DOMPurify.sanitize(post.content || '');
 
   return (
-    <main id="main">
+    <main id="main" className="editorial-page article-page">
       <article className="section" style={{ paddingBottom: '3rem' }}>
         <div className="container" style={{ maxWidth: '820px' }}>
           <Link to="/blog" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
